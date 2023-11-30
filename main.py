@@ -18,6 +18,7 @@ pokeapi_base_url = "https://pokeapi.co/api/v2/pokemon/"
 
 # Shop items (name, price)
 shop_items = {'<:pokeball:1179858493822476450> Poke Ball': 10, '<:greatball:1179858490735480862> Great Ball': 20, '<:ultraball:1179858488827052062> Ultra Ball': 30}
+user_inventory = {}
 
 # Currency system
 user_coins = {}

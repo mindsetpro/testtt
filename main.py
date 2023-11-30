@@ -31,7 +31,7 @@ async def on_ready():
 @bot.command(name='catch', help='Catch a random wild Pokemon using a Poke Ball!')
 async def catch(ctx):
     # Check if the user has a Poke Ball
-    if '<:pokeball:1179858493822476450> Poke Ball' not in user_inventory(ctx.author.id):
+    if '<:pokeball:1179858493822476450> Poke Ball' not in user_inventory[ctx.author.id]:
         return await ctx.send("You need a Poke Ball to catch Pokemon. Buy one from the shop with `l.buy`!")
 
     # Consume a Poke Ball

@@ -85,9 +85,13 @@ async def gw(ctx, duration: int):
     giveaway_start_times[giveaway_message.id] = int(time.time())
     giveaway_channels[giveaway_message.id] = ctx.channel.id
 
+    # Add the reaction to the message
+    await giveaway_message.add_reaction('🎉')
+
     # Start the loop to check for the giveaway end
     if not check_giveaways.is_running():
         check_giveaways.start()
+
 
 @bot.slash_command()
 async def reroll(ctx, message_id: int):

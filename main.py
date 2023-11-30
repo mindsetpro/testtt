@@ -28,15 +28,8 @@ async def on_ready():
     print(f"We have logged in as {bot.user}")
 
 # Catch command
-@bot.command(name='catch', help='Catch a random wild Pokemon using a Poke Ball!')
+@bot.command(name='catch', help='Catch a random wild Pokemon!')
 async def catch(ctx):
-    # Check if the user has a Poke Ball
-    if '<:pokeball:1179858493822476450> Poke Ball' not in user_inventory[ctx.author.id]:
-        return await ctx.send("You need a Poke Ball to catch Pokemon. Buy one from the shop with `l.buy`!")
-
-    # Consume a Poke Ball
-    remove_item(ctx.author.id, '<:pokeball:1179858493822476450> Poke Ball')
-
     # Generate a random Pokemon ID between 1 and 1016
     random_pokemon_id = random.randint(1, 1016)
 
@@ -71,6 +64,7 @@ async def catch(ctx):
     else:
         await ctx.send(embed=discord.Embed(description=f"Failed to catch a random Pokemon.",
                                            color=discord.Color.red()))
+
 
 # Pokedex command
 @bot.command(name='pokedex', help='Get information about a Pokemon from the Pokedex')

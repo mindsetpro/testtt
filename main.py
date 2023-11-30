@@ -9,6 +9,7 @@ intents = discord.Intents.all()
 # Prefix for commands
 prefix = 'l.'
 bot = commands.Bot(command_prefix=prefix, intents=intents)
+bot.remove_command("help")
 
 # PokeAPI base URL
 pokeapi_base_url = "https://pokeapi.co/api/v2/pokemon/"

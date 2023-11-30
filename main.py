@@ -1,5 +1,7 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
+from discord.ui import button, ButtonColor
+
 import requests
 import random
 
@@ -17,15 +19,52 @@ pokeapi_base_url = "https://pokeapi.co/api/v2/pokemon/"
 # Shop items (name, price)
 shop_items = {'<:pokeball:1179858493822476450> Poke Ball': 10, '<:greatball:1179858490735480862> Great Ball': 20, '<:ultraball:1179858488827052062> Ultra Ball': 30}
 
+# Currency system
+user_coins = {}
+
+# Give coins every 5 minutes
+@tasks.loop(minutes=5)
+async def give_coins_task():
+    for user_id in user_coins:
+        user_coins[user_id] += random.randint(1, 10)
+
+@give_coins_task.before_loop
+async def before_give_coins_task():
+    await bot.wait_until_ready()
+
+    # Load user coins from a database or any storage
+    # For simplicity, let's initialize them to 0
+    for guild in bot.guilds:
+        for member in guild.members:
+            user_coins[member.id] = 0
+
+    print("Coins task is ready")
+
+@give_coins_task.after_loop
+async def after_give_coins_task():
+    print("Coins task stopped")
+
+give_coins_task.start()
+
 @bot.event
 async def on_ready():
     print(f"We have logged in as {bot.user}")
 
 # Catch command
-@bot.command(name='catch', help='Catch a wild Pokemon!')
-async def catch(ctx, pokemon_name):
+@bot.command(name='catch', help='Catch a random wild Pokemon using a Poke Ball!')
+async def catch(ctx):
+    # Check if the user has a Poke Ball
+    if '<:pokeball:1179858493822476450> Poke Ball' not in user_inventory(ctx.author.id):
+        return await ctx.send("You need a Poke Ball to catch Pokemon. Buy one from the shop with `l.buy`!")
+
+    # Consume a Poke Ball
+    remove_item(ctx.author.id, '<:pokeball:1179858493822476450> Poke Ball')
+
+    # Generate a random Pokemon ID between 1 and 1016
+    random_pokemon_id = random.randint(1, 1016)
+
     # Get Pokemon data from PokeAPI
-    response = requests.get(pokeapi_base_url + pokemon_name.lower())
+    response = requests.get(pokeapi_base_url + str(random_pokemon_id))
     if response.status_code == 200:
         pokemon_data = response.json()
 
@@ -34,8 +73,7 @@ async def catch(ctx, pokemon_name):
         escape_chance = random.randint(1, 10)
 
         # Create an embed with Pokemon information
-        embed = discord.Embed(title=f"Wild {pokemon_name.capitalize()} appeared!",
-                              description=f"Shiny Chance: {shiny_chance}/10\nEscape Chance: {escape_chance}/10",
+        embed = discord.Embed(title=f"Wild {pokemon_data['name'].capitalize()} appeared!",
                               color=discord.Color.blue())
         embed.set_thumbnail(url=pokemon_data['sprites']['front_default'])
 
@@ -43,15 +81,18 @@ async def catch(ctx, pokemon_name):
         if shiny_chance == 1:
             embed.add_field(name='Result', value="Congratulations! You caught a shiny Pokemon!")
         elif escape_chance == 1:
-            embed.add_field(name='Result', value=f"Oh no! {pokemon_name.capitalize()} escaped!")
+            embed.add_field(name='Result', value=f"Oh no! {pokemon_data['name'].capitalize()} escaped!")
         else:
-            embed.add_field(name='Result', value=f"You caught {pokemon_name.capitalize()}!")
+            # Earn coins based on the Pokemon's base experience
+            earn_coins = pokemon_data['base_experience'] // 10
+            add_coins(ctx.author.id, earn_coins)
+            embed.add_field(name='Result', value=f"You caught {pokemon_data['name'].capitalize()} and earned {earn_coins} Poke Dollars!")
 
         # Send the embed
         await ctx.send(embed=embed)
 
     else:
-        await ctx.send(embed=discord.Embed(description=f"Pokemon {pokemon_name.capitalize()} not found!",
+        await ctx.send(embed=discord.Embed(description=f"Failed to catch a random Pokemon.",
                                            color=discord.Color.red()))
 
 # Pokedex command
@@ -94,23 +135,71 @@ async def shop(ctx):
     # Send the embed
     await ctx.send(embed=embed)
 
+# Buy command
+@bot.command(name='buy', help='Buy an item from the shop')
+async def buy(ctx, item_name):
+    item_name = item_name.lower().capitalize()
+    if item_name in shop_items:
+        price = shop_items[item_name]
+        if user_coins[ctx.author.id] >= price:
+            add_item(ctx.author.id, item_name)
+            remove_coins(ctx.author.id, price)
+            await ctx.send(f"Successfully bought {item_name} for {price} Poke Dollars!")
+        else:
+            await ctx.send("You don't have enough Poke Dollars to buy this item.")
+    else:
+        await ctx.send("Item not found in the shop.")
 
-# Help command
+# Give coins command (for testing purposes)
+@bot.command(name='give_coins', help='Give coins to a user')
+async def give_coins(ctx, user: discord.User, amount: int):
+    if ctx.author.id == YOUR_USER_ID:  # Replace YOUR_USER_ID with your own Discord user ID
+        add_coins(user.id, amount)
+        await ctx.send(f"Gave {amount} Poke Dollars to {user.name}.")
+    else:
+        await ctx.send("You don't have permission to use this command.")
+
+# Help command using buttons
+class HelpView(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+
+    @button(label='Catch', style=ButtonColor.green)
+    async def catch_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message('Catch a random wild Pokemon using a Poke Ball!', ephemeral=True)
+
+    @button(label='Pokedex', style=ButtonColor.blue)
+    async def pokedex_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message('Get information about a Pokemon from the Pokedex', ephemeral=True)
+
+    @button(label='Shop', style=ButtonColor.gold)
+    async def shop_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message('View items available in the shop', ephemeral=True)
+
+    @button(label='Buy', style=ButtonColor.blurple)
+    async def buy_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message('Buy an item from the shop', ephemeral=True)
+
+    @button(label='Help', style=ButtonColor.red)
+    async def help_button(self, button: discord.ui.Button, interaction: discord.Interaction):
+        await interaction.response.send_message('Show this message', ephemeral=True)
+
 @bot.command(name='help', help='Show this message')
 async def help_command(ctx):
     # Create an embed with help information
-    embed = discord.Embed(title='Pokemon RPG Bot Help',
+    embed = discord.Embed(title='LakK Bot Help',
                           description=f"Prefix: {prefix}\n\n**Commands:**\n"
-                                      f"- {prefix}catch [pokemon_name]\n"
-                                      f"- {prefix}pokedex [pokemon_name]\n"
-                                      f"- {prefix}shop\n"
-                                      f"- {prefix}help",
+                                      f"- `catch` - Catch a random wild Pokemon using a Poke Ball\n"
+                                      f"- `pokedex [pokemon_name]` - Get information about a Pokemon from the Pokedex\n"
+                                      f"- `shop` - View items available in the shop\n"
+                                      f"- `buy [item]` - Buy an item from the shop\n"
+                                      f"- `help` - Show this message",
                           color=discord.Color.orange())
 
-    # Send the embed
-    await ctx.send(embed=embed)
+    # Send the embed with buttons
+    view = HelpView()
+    await ctx.send(embed=embed, view=view)
 
-        
 import os
 TOKEN = os.getenv("TOKEN")
 bot.run(TOKEN)

@@ -22,30 +22,6 @@ shop_items = {'<:pokeball:1179858493822476450> Poke Ball': 10, '<:greatball:1179
 # Currency system
 user_coins = {}
 
-# Give coins every 5 minutes
-@tasks.loop(minutes=5)
-async def give_coins_task():
-    for user_id in user_coins:
-        user_coins[user_id] += random.randint(1, 10)
-
-@give_coins_task.before_loop
-async def before_give_coins_task():
-    await bot.wait_until_ready()
-
-    # Load user coins from a database or any storage
-    # For simplicity, let's initialize them to 0
-    for guild in bot.guilds:
-        for member in guild.members:
-            user_coins[member.id] = 0
-
-    print("Coins task is ready")
-
-@give_coins_task.after_loop
-async def after_give_coins_task():
-    print("Coins task stopped")
-
-give_coins_task.start()
-
 @bot.event
 async def on_ready():
     print(f"We have logged in as {bot.user}")

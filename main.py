@@ -159,31 +159,6 @@ async def give_coins(ctx, user: discord.User, amount: int):
     else:
         await ctx.send("You don't have permission to use this command.")
 
-# Help command using buttons
-class HelpView(discord.ui.View):
-    def __init__(self):
-        super().__init__()
-
-    @button(label='Catch', style=discord.ButtonStyle.green)
-    async def catch_button(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message('Catch a random wild Pokemon using a Poke Ball!', ephemeral=True)
-
-    @button(label='Pokedex', style=discord.ButtonStyle.blue)
-    async def pokedex_button(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message('Get information about a Pokemon from the Pokedex', ephemeral=True)
-
-    @button(label='Shop', style=discord.ButtonStyle.gold)
-    async def shop_button(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message('View items available in the shop', ephemeral=True)
-
-    @button(label='Buy', style=discord.ButtonStyle.blurple)
-    async def buy_button(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message('Buy an item from the shop', ephemeral=True)
-
-    @button(label='Help', style=discord.ButtonStyle.red)
-    async def help_button(self, button: discord.ui.Button, interaction: discord.Interaction):
-        await interaction.response.send_message('Show this message', ephemeral=True)
-
 
 @bot.command(name='help', help='Show this message')
 async def help_command(ctx):
@@ -197,9 +172,8 @@ async def help_command(ctx):
                                       f"- `help` - Show this message",
                           color=discord.Color.orange())
 
-    # Send the embed with buttons
-    view = HelpView()
-    await ctx.send(embed=embed, view=view)
+
+    await ctx.send(embed=embed)
 
 import os
 TOKEN = os.getenv("TOKEN")

@@ -17,7 +17,14 @@ user_pokemon = {}
 @bot.slash_command(name="catch", description="Catch a Pokémon")
 async def _catch(ctx):
     pokemon_name = get_random_pokemon()
+    pokemon_data = await fetch_pokeapi_data(f"pokemon/{pokemon_name.lower()}")
+    
+    # Get the official art URL from the fetched data
+    official_art_url = pokemon_data['sprites']['other']['official-artwork']['front_default']
+
     embed = disnake.Embed(title=f"You caught a wild {pokemon_name}!", color=disnake.Color.green())
+    embed.set_image(url=official_art_url)
+    
     await ctx.send(embed=embed)
 
     # Add the caught Pokémon to the user's storage
@@ -25,6 +32,12 @@ async def _catch(ctx):
     if user_id not in user_pokemon:
         user_pokemon[user_id] = []
     user_pokemon[user_id].append(pokemon_name)
+
+async def fetch_pokeapi_data(endpoint):
+    # Fetch data from the PokeAPI
+    response = await bot.http.get(f"{POKEAPI_BASE_URL}{endpoint}")
+    data = response.json()
+    return data
 
 # /pokedex command
 @bot.slash_command(name="pokedex", description="View your Pokémon")
@@ -37,6 +50,13 @@ async def _pokedex(ctx):
     pokedex_pages = [create_pokedex_embed(page + 1, user_pokemon[user_id][page * 10 : (page + 1) * 10]) for page in range((len(user_pokemon[user_id]) - 1) // 10 + 1)]
     view = PokedexView(pokedex_pages)
     await ctx.send(embed=pokedex_pages[0], view=view)
+
+def create_pokedex_embed(page_number, pokemon_list):
+    embed = disnake.Embed(title=f"Your Pokédex - Page {page_number}", color=disnake.Color.blue())
+    for pokemon in pokemon_list:
+        embed.add_field(name=pokemon, value="Owned", inline=False)
+    return embed
+
 
 class PokedexView(View):
     def __init__(self, pages):
@@ -103,15 +123,9 @@ def get_random_pokemon():
     data = response.json()
     return data['name'].capitalize()
 
-def create_pokedex_embed(page_number, pokemon_list):
-    embed = disnake.Embed(title=f"Your Pokédex - Page {page_number}", color=disnake.Color.blue())
-    for pokemon in pokemon_list:
-        embed.add_field(name=pokemon, value="Owned", inline=True)
-    return embed
-
 async def get_shop_items():
     # Fetch items from the PokeAPI
-    response = await fetch_pokeapi_data('item?limit=30')  # Adjust the limit as needed
+    response = await fetch_pokeapi_data('item?limit=7')  # Adjust the limit as needed
     items = response['results']
     
     shop_items = []

@@ -1,106 +1,114 @@
-import disnake
-from disnake.ext import commands, tasks
-import asyncio
-import time
+import discord
+from discord.ext import commands
+import requests
 import random
 
-intents = disnake.Intents.all()  # Enable all intents
-bot = commands.Bot(command_prefix='/', intents=intents)
+# Enable the necessary intents
+intents = discord.Intents.all()
 
-# Dictionary to store active giveaways
-giveaways = {}
-giveaway_start_times = {}
-giveaway_channels = {}
+# Prefix for commands
+prefix = 'l.'
+bot = commands.Bot(command_prefix=prefix, intents=intents)
+
+# PokeAPI base URL
+pokeapi_base_url = "https://pokeapi.co/api/v2/pokemon/"
+
+# Shop items (name, price)
+shop_items = {'<:pokeball:1179858493822476450> Poke Ball': 10, '<:greatball:1179858490735480862> Great Ball': 20, '<:ultraball:1179858488827052062> Ultra Ball': 30}
 
 @bot.event
 async def on_ready():
-    print(f'Logged in as {bot.user.name}')
+    print(f"We have logged in as {bot.user}")
 
-@tasks.loop(seconds=60)  # Check every minute
-async def check_giveaways():
-    for giveaway_data in giveaways.values():
-        duration, message_id = giveaway_data
-        remaining_time = duration - (time := int(time.time() - giveaway_start_times[message_id]))
+# Catch command
+@bot.command(name='catch', help='Catch a wild Pokemon!')
+async def catch(ctx, pokemon_name):
+    # Get Pokemon data from PokeAPI
+    response = requests.get(pokeapi_base_url + pokemon_name.lower())
+    if response.status_code == 200:
+        pokemon_data = response.json()
 
-        if remaining_time <= 0:
-            # Giveaway has ended
-            await end_giveaway(message_id)
+        # Generate a random chance for shiny or escape
+        shiny_chance = random.randint(1, 10)
+        escape_chance = random.randint(1, 10)
+
+        # Create an embed with Pokemon information
+        embed = discord.Embed(title=f"Wild {pokemon_name.capitalize()} appeared!",
+                              description=f"Shiny Chance: {shiny_chance}/10\nEscape Chance: {escape_chance}/10",
+                              color=discord.Color.blue())
+        embed.set_thumbnail(url=pokemon_data['sprites']['front_default'])
+
+        # Check if the Pokemon is shiny or escaped
+        if shiny_chance == 1:
+            embed.add_field(name='Result', value="Congratulations! You caught a shiny Pokemon!")
+        elif escape_chance == 1:
+            embed.add_field(name='Result', value=f"Oh no! {pokemon_name.capitalize()} escaped!")
         else:
-            # Update the remaining time in the message
-            message = await bot.get_channel(giveaway_channels[message_id]).fetch_message(message_id)
-            embed = message.embeds[0]
-            embed.description = f"React with 🎉 to enter!\nTime remaining: {remaining_time // 60} minutes"
-            await message.edit(embed=embed)
+            embed.add_field(name='Result', value=f"You caught {pokemon_name.capitalize()}!")
 
-async def end_giveaway(message_id):
-    # Your giveaway ending logic here
-    # For example, pick a winner randomly
-    message = await bot.get_channel(giveaway_channels[message_id]).fetch_message(message_id)
-    reactions = [reaction for reaction in message.reactions if str(reaction.emoji) == '🎉']
-    winner = None
+        # Send the embed
+        await ctx.send(embed=embed)
 
-    if reactions:
-        winner = reactions[0].users().filter(lambda u: not u.bot).random()
-
-    # Announce the winner
-    if winner:
-        winner_mention = winner.mention
     else:
-        winner_mention = "No one entered the giveaway. 😢"
+        await ctx.send(embed=discord.Embed(description=f"Pokemon {pokemon_name.capitalize()} not found!",
+                                           color=discord.Color.red()))
 
-    embed = disnake.Embed(
-        title=f"🏆 Giveaway Winner 🏆",
-        description=f"Congratulations {winner_mention}! You won the giveaway!",
-        color=0x2ecc71  # Green color for the winner
-    )
-    await bot.get_channel(giveaway_channels[message_id]).send(embed=embed)
+# Pokedex command
+@bot.command(name='pokedex', help='Get information about a Pokemon from the Pokedex')
+async def pokedex(ctx, pokemon_name):
+    # Get Pokemon data from PokeAPI
+    response = requests.get(pokeapi_base_url + pokemon_name.lower())
+    if response.status_code == 200:
+        pokemon_data = response.json()
 
-    # Stop the loop for this giveaway
-    check_giveaways.stop()
-    del giveaways[message_id]
-    del giveaway_start_times[message_id]
-    del giveaway_channels[message_id]
+        # Create an embed with Pokemon information
+        embed = discord.Embed(title=f"{pokemon_name.capitalize()}'s Pokedex Entry",
+                              color=discord.Color.green())
+        embed.add_field(name='Height', value=f"{pokemon_data['height'] / 10} m")
+        embed.add_field(name='Weight', value=f"{pokemon_data['weight'] / 10} kg")
+        embed.add_field(name='Abilities', value=', '.join([ability['ability']['name'] for ability in pokemon_data['abilities']]))
+        embed.set_thumbnail(url=pokemon_data['sprites']['front_default'])
 
-@bot.slash_command()
-async def gw(ctx, duration: int):
-    # Set up the giveaway details
-    prize = "3000 EXP"
-    image_url = "https://media.discordapp.net/attachments/1178407310033440818/1179785550471893073/image_16.png?ex=657b0bea&is=656896ea&hm=8ee74c54d0493ba27ad38379cbee9be31cdd77cb024fba65de6b3deec19f67de&=&format=webp&quality=lossless"
+        # Send the embed
+        await ctx.send(embed=embed)
 
-    # Create the giveaway embed
-    embed = disnake.Embed(
-        title=f"🎉 Giveaway: {prize} 🎉",
-        description=f"React with 🎉 to enter!\nTime remaining: {duration} seconds",
-        color=0x3498db  # Use any color you prefer
-    )
-    embed.set_image(url=image_url)
-    embed.set_footer(text=f"Hosted by {ctx.author.display_name}", icon_url=ctx.author.avatar.url)
-
-    # Send the giveaway message
-    giveaway_message = await ctx.send(embed=embed)
-    await giveaway_message.add_reaction('🎉')  # Add reaction for entering the giveaway
-
-    # Save giveaway data for later reference
-    giveaways[giveaway_message.id] = (duration, giveaway_message.id)
-    giveaway_start_times[giveaway_message.id] = int(time.time())
-    giveaway_channels[giveaway_message.id] = ctx.channel.id
-
-    # Add the reaction to the message
-    await giveaway_message.add_reaction('🎉')
-
-    # Start the loop to check for the giveaway end
-    if not check_giveaways.is_running():
-        check_giveaways.start()
-
-
-@bot.slash_command()
-async def reroll(ctx, message_id: int):
-    if message_id in giveaways:
-        # Reroll the giveaway
-        await end_giveaway(message_id)
-        await ctx.send(f"Rerolled the giveaway with message ID {message_id}.")
     else:
-        await ctx.send(f"No active giveaway found with message ID {message_id}.")
+        await ctx.send(embed=discord.Embed(description=f"Pokemon {pokemon_name.capitalize()} not found!",
+                                           color=discord.Color.red()))
+
+# Shop command
+@bot.command(name='shop', help='View items available in the shop')
+async def shop(ctx):
+    # Create an embed with shop items
+    embed = discord.Embed(title='Pokemart - Shop Items', color=discord.Color.gold(),
+                          description='Welcome to the Pokemart! Here are the items available for purchase:')
+    
+    for item, price in shop_items.items():
+        embed.add_field(name=f"{item} - {price} Poke Dollars", value="Buy with `l.buy [item]`", inline=False)
+    
+    # Set the thumbnail
+    thumbnail_url = "https://th.bing.com/th/id/OIP.mxCrHbetATahntTghPb1jQEQDl?w=221&h=186&c=7&r=0&o=5&pid=1.7"
+    embed.set_thumbnail(url=thumbnail_url)
+
+    # Send the embed
+    await ctx.send(embed=embed)
+
+
+# Help command
+@bot.command(name='help', help='Show this message')
+async def help_command(ctx):
+    # Create an embed with help information
+    embed = discord.Embed(title='Pokemon RPG Bot Help',
+                          description=f"Prefix: {prefix}\n\n**Commands:**\n"
+                                      f"- {prefix}catch [pokemon_name]\n"
+                                      f"- {prefix}pokedex [pokemon_name]\n"
+                                      f"- {prefix}shop\n"
+                                      f"- {prefix}help",
+                          color=discord.Color.orange())
+
+    # Send the embed
+    await ctx.send(embed=embed)
+
         
 import os
 TOKEN = os.getenv("TOKEN")

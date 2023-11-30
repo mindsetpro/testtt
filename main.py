@@ -146,3 +146,4 @@ async def fetch_pokeapi_data(endpoint):
 import os
 TOKEN = os.getenv("TOKEN")
 bot.run(TOKEN)
+

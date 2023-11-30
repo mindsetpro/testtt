@@ -130,7 +130,7 @@ async def buy(ctx, item_name):
 # Give coins command (for testing purposes)
 @bot.command(name='give_coins', help='Give coins to a user')
 async def give_coins(ctx, user: discord.User, amount: int):
-    if ctx.author.id == YOUR_USER_ID:  # Replace YOUR_USER_ID with your own Discord user ID
+    if ctx.author.id == 1046198375265083483:  # Replace YOUR_USER_ID with your own Discord user ID
         add_coins(user.id, amount)
         await ctx.send(f"Gave {amount} Poke Dollars to {user.name}.")
     else:

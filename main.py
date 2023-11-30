@@ -53,10 +53,7 @@ async def catch(ctx):
         elif escape_chance == 1:
             embed.add_field(name='Result', value=f"Oh no! {pokemon_data['name'].capitalize()} escaped!")
         else:
-            # Earn coins based on the Pokemon's base experience
-            earn_coins = pokemon_data['base_experience'] // 10
-            add_coins(ctx.author.id, earn_coins)
-            embed.add_field(name='Result', value=f"You caught {pokemon_data['name'].capitalize()} and earned {earn_coins} Poke Dollars!")
+            embed.add_field(name='Result', value=f"You caught {pokemon_data['name'].capitalize()}!")
 
         # Send the embed
         await ctx.send(embed=embed)
@@ -64,6 +61,7 @@ async def catch(ctx):
     else:
         await ctx.send(embed=discord.Embed(description=f"Failed to catch a random Pokemon.",
                                            color=discord.Color.red()))
+
 
 
 # Pokedex command

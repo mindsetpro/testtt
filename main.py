@@ -101,6 +101,7 @@ async def reroll(ctx, message_id: int):
         await ctx.send(f"Rerolled the giveaway with message ID {message_id}.")
     else:
         await ctx.send(f"No active giveaway found with message ID {message_id}.")
+        
 import os
 TOKEN = os.getenv("TOKEN")
 bot.run(TOKEN)

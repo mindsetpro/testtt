@@ -1,161 +1,97 @@
-import disnake
-from disnake.ext import commands
-from disnake.ui import View, button
-import requests
-import random
+import discord
+from discord.ext import commands
+from discord.ui import Button
+import httpx  # Import httpx instead of requests
 
-bot = commands.Bot(command_prefix='/')
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix="c?", intents=intents)
 
-# Define some constants
-POKEAPI_BASE_URL = 'https://pokeapi.co/api/v2/'
-MAX_POKEMON_CAPACITY = 100
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name} ({bot.user.id})')
+    print('------')
 
-# User storage (replace this with a proper database)
-user_pokemon = {}
+@bot.command(name="catch")
+async def catch(ctx):
+    try:
+        # Generate a random Pokemon ID between 1 and 1016
+        random_pokemon_id = random.randint(1, 1016)
 
-# /catch command
-@bot.slash_command(name="catch", description="Catch a Pokémon")
-async def _catch(ctx):
-    pokemon_name = get_random_pokemon()
-    pokemon_data = await fetch_pokeapi_data(f"pokemon/{pokemon_name.lower()}")
-    
-    # Get the official art URL from the fetched data
-    official_art_url = pokemon_data['sprites']['other']['official-artwork']['front_default']
+        # Fetch Pokemon data from PokeAPI
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://pokeapi.co/api/v2/pokemon/{random_pokemon_id}")
+            pokemon_data = response.json()
 
-    embed = disnake.Embed(title=f"You caught a wild {pokemon_name}!", color=disnake.Color.green())
-    embed.set_image(url=official_art_url)
-    
-    await ctx.send(embed=embed)
+        # Fetch official Pokemon art URL from PokeAPI
+        official_art_url = f"https://pokeapi.co/media/sprites/pokemon/other/official-artwork/{random_pokemon_id}.png"
 
-    # Add the caught Pokémon to the user's storage
-    user_id = str(ctx.author.id)
-    if user_id not in user_pokemon:
-        user_pokemon[user_id] = []
-    user_pokemon[user_id].append(pokemon_name)
+        # Create an embed with Pokemon information
+        embed = discord.Embed(title=f"Info about Pokemon #{random_pokemon_id}",
+                              description=f"Type: {', '.join([t['type']['name'] for t in pokemon_data['types']])}",
+                              color=discord.Color.blue())
 
-async def fetch_pokeapi_data(endpoint):
-    # Fetch data from the PokeAPI
-    response = await bot.http.get(f"{POKEAPI_BASE_URL}{endpoint}")
-    data = response.json()
-    return data
+        embed.set_image(url=official_art_url)
 
-# /pokedex command
-@bot.slash_command(name="pokedex", description="View your Pokémon")
-async def _pokedex(ctx):
-    user_id = str(ctx.author.id)
-    if user_id not in user_pokemon or not user_pokemon[user_id]:
-        await ctx.send("Your Pokédex is empty!")
-        return
+        await ctx.send(embed=embed)
 
-    pokedex_pages = [create_pokedex_embed(page + 1, user_pokemon[user_id][page * 10 : (page + 1) * 10]) for page in range((len(user_pokemon[user_id]) - 1) // 10 + 1)]
-    view = PokedexView(pokedex_pages)
-    await ctx.send(embed=pokedex_pages[0], view=view)
+    except Exception as e:
+        print(e)
+        await ctx.send("Error fetching Pokemon data!")
 
-def create_pokedex_embed(page_number, pokemon_list):
-    embed = disnake.Embed(title=f"Your Pokédex - Page {page_number}", color=disnake.Color.blue())
-    for pokemon in pokemon_list:
-        embed.add_field(name=pokemon, value="Owned", inline=False)
-    return embed
-
-
-class PokedexView(View):
-    def __init__(self, pages):
+class PokedexView(discord.ui.View):
+    def __init__(self, pokedex_data):
         super().__init__()
-        self.pages = pages
+        self.pokedex_data = pokedex_data
 
-    @button(label="Prev", style=disnake.ButtonStyle.gray)
-    async def prev_button(self, button, interaction):
-        await self.show_page(interaction, -1)
+    async def on_timeout(self):
+        await self.message.edit(view=None)
 
-    @button(label="Next", style=disnake.ButtonStyle.gray)
-    async def next_button(self, button, interaction):
-        await self.show_page(interaction, 1)
+    async def on_button_click(self, button, interaction):
+        index = int(button.custom_id)
+        pokemon_info = self.pokedex_data[index]
 
-    async def show_page(self, interaction, direction):
-        current_page = self.current_page(interaction)
-        new_page = (current_page + direction) % len(self.pages)
-        await interaction.message.edit(embed=self.pages[new_page], view=self)
+        embed = discord.Embed(title=pokemon_info['name'].capitalize(), color=discord.Color.green())
+        embed.set_image(url=f"https://pokeres.bastionbot.org/images/pokemon/{index + 1}.png")
 
-    def current_page(self, interaction):
-        return self.pages.index(interaction.message.embeds[0])
+        await interaction.response.edit_message(embed=embed, view=self)
 
-# /release command
-@bot.slash_command(name="release", description="Release a Pokémon")
-async def _release(ctx, pokemon_name: str):
-    user_id = str(ctx.author.id)
-    if user_id not in user_pokemon or pokemon_name not in user_pokemon[user_id]:
-        await ctx.send("You don't have that Pokémon!")
-        return
+@bot.command(name="pokedex")
+async def pokedex(ctx):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://pokeapi.co/api/v2/pokemon?limit=151")
+            pokedex_data = response.json()['results']
 
-    user_pokemon[user_id].remove(pokemon_name)
-    await ctx.send(f"You released {pokemon_name}!")
+        pokedex_view = PokedexView(pokedex_data)
 
-# /start command
-@bot.slash_command(name="start", description="Register as a trainer")
-async def _start(ctx):
-    view = StartView()
-    await ctx.send("Welcome to the world of Pokémon! What is your trainer name?", view=view)
+        embed = discord.Embed(title="Pokedex", color=discord.Color.blue())
+        embed.set_image(url="https://i.imgur.com/nP1l06D.png")
 
-class StartView(View):
-    def __init__(self):
-        super().__init__()
+        pokedex_view.message = await ctx.send(embed=embed, view=pokedex_view)
 
-    @button(label="Register", style=disnake.ButtonStyle.green)
-    async def register_button(self, button, interaction):
-        await interaction.response.send_message("Trainer registration complete!", ephemeral=True)
-        await self.clear_buttons()
+        for index, pokemon_info in enumerate(pokedex_data):
+            button = Button(style=discord.ButtonStyle.grey, label=pokemon_info['name'].capitalize(), custom_id=str(index))
+            pokedex_view.add_item(button)
 
-# /trade command
-@bot.slash_command(name="trade", description="Trade Pokémon with another user")
-async def _trade(ctx, other_user: disnake.User):
-    await ctx.send(f"Initiating trade with {other_user.name}!")
+    except Exception as e:
+        print(e)
+        await ctx.send("Error fetching Pokedex data!")
 
-# /shop command
-@bot.slash_command(name="shop", description="Visit the Pokémon shop")
-async def _shop(ctx):
-    shop_items = get_shop_items()
-    embed = create_shop_embed(shop_items)
-    await ctx.send(embed=embed)
+@bot.command(name="shop")
+async def shop(ctx):
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("https://pokeapi.co/api/v2/item?limit=10")
+            shop_items = response.json()['results']
 
-def get_random_pokemon():
-    # Fetch a random Pokémon from the PokeAPI
-    response = requests.get(f"{POKEAPI_BASE_URL}pokemon/{random.randint(1, 898)}")
-    data = response.json()
-    return data['name'].capitalize()
+        for shop_item in shop_items:
+            embed = discord.Embed(title=shop_item['name'].capitalize(), color=discord.Color.purple())
+            await ctx.send(embed=embed)
 
-async def get_shop_items():
-    # Fetch items from the PokeAPI
-    response = await fetch_pokeapi_data('item?limit=7')  # Adjust the limit as needed
-    items = response['results']
-    
-    shop_items = []
-    for item in items:
-        item_data = await fetch_pokeapi_data(item['url'])
-        shop_items.append({
-            'name': item_data['name'].capitalize(),
-            'description': item_data['effect_entries'][0]['effect'],
-            'price': 100  # Set a default price, adjust as needed
-        })
+    except Exception as e:
+        print(e)
+        await ctx.send("Error fetching shop data!")
 
-    return shop_items
-
-def create_shop_embed(shop_items):
-    embed = disnake.Embed(title="Pokémon Shop", color=disnake.Color.gold())
-
-    for item in shop_items:
-        embed.add_field(
-            name=f"{item['name']} - {item['price']} Poké Dollars",
-            value=f"Description: {item['description']}",
-            inline=False
-        )
-
-    return embed
-
-async def fetch_pokeapi_data(endpoint):
-    # Fetch data from the PokeAPI
-    response = await bot.http.get(f"{POKEAPI_BASE_URL}{endpoint}")
-    data = response.json()
-    return data
 
 import os
 TOKEN = os.getenv("TOKEN")

@@ -1,91 +1,45 @@
 import discord
-from discord import app_commands 
-from discord.ext import commands
-import psutil
-import datetime
-from discord import ui
+from discord.ext import commands 
+import random
+import requests
+from PIL import Image, ImageDraw, ImageFont
 
-intents = discord.Intents.all()
-intents.members = True
+subreddit = 'fightporn' 
 
-bot = commands.Bot(command_prefix="?", intents=intents)
+bot = commands.Bot(command_prefix='/')
 
-@bot.event
-async def on_ready():
-    print(f"Logged in as {bot.user} - {bot.user.id}")
-    await bot.tree.sync()
+@bot.command() 
+async def rank(ctx):
+    xp_current = 820  
+    xp_to_level_up = 900
+    
+    percentage = int(100 * xp_current / xp_to_level_up)
+    
+    img = Image.new('RGB', (400, 40), color = (73, 109, 137))
+    
+    d = ImageDraw.Draw(img)
+    d.rectangle((0, 0, percentage * 4, 40), fill=(255, 0, 0))
+    
+    fnt = ImageFont.truetype('Pillow/Tests/fonts/FreeMono.ttf', 20)
+    d.text((200, 10), str(percentage)+'%', font=fnt, fill=(255,255,0))
+    
+    img.save('progress.png')
+    
+    embed = discord.Embed(title=f"{ctx.author.name}'s Rank")
+    file = discord.File("progress.png", filename="image.png")
+    embed.set_image(url="attachment://image.png")
+    embed.add_field(name="Level", value="5") 
+    embed.add_field(name="XP", value=f"{xp_current}/{xp_to_level_up}")  
+    
+    await ctx.send(file=file, embed=embed)
 
-@bot.tree.command(name="help")
-async def help_menu(interaction: discord.Interaction):
-    embeds = []
-    
-    # Create embed for each cog
-    info = discord.Embed(title="Info")
-    info.add_field(name="/serverinfo", value="Shows server information")
-    info.add_field(name="/userinfo", value="Shows user information")
-    embeds.append(info)
-    
-    mod = discord.Embed(title="Moderation") 
-    mod.add_field(name="/purge", value="Purges messages")
-    mod.add_field(name="/kick", value="Kicks a member")
-    mod.add_field(name="/ban", value="Bans a member")
-    embeds.append(mod)
-    
-    # Send embeds paginated
-    pages = discord.ui.View() 
-    pages.add_item(discord.ui.Button(label="Prev"))
-    pages.add_item(discord.ui.Button(label="Next"))
-    
-    await interaction.response.send_message(embed=embeds[0], view=pages, ephemeral=True)
-
-@bot.tree.command()
-async def serverinfo(interaction: discord.Interaction):
-    emb = discord.Embed(timestamp=datetime.datetime.utcnow())
-    
-    emb.set_author(name=interaction.guild.name, icon_url=interaction.guild.icon.url)
-    emb.add_field(name="Members", value=interaction.guild.member_count) 
-    # other fields
-    
-    await interaction.response.send_message(embed=emb)
-    
-@bot.tree.command()  
-async def userinfo(interaction: discord.Interaction, member: discord.Member):
-    roles = [role.mention for role in member.roles[1:]] # exclude @everyone
-    
-    embed = discord.Embed(timestamp=datetime.utcnow())
-    embed.set_author(name=str(member), icon_url=member.avatar.url)
-    embed.set_thumbnail(url=member.avatar.url)
-    embed.add_field(name="Joined At", value=member.joined_at.strftime("%#d %B %Y, %I:%M %p UTC"))
-    embed.add_field(name="Account Created", value=member.created_at.strftime("%#d %B %Y, %I:%M %p UTC"))
-    embed.add_field(name=f"Roles [{len(roles)}]", value=" ".join(roles), inline=False)
-    
-    await interaction.response.send_message(embed=embed)
-
-@bot.tree.command()
-async def system(interaction: discord.Interaction):
-    embed = discord.Embed(title="System Information")
-    
-    cpu_use = psutil.cpu_percent()
-    ram_use = psutil.virtual_memory().percent
-    disk_use = psutil.disk_usage('/').percent
-    
-    embed.add_field(name="CPU Usage", value=f"{cpu_use}%") 
-    embed.add_field(name="RAM Usage", value=f"{ram_use}%")
-    embed.add_field(name="Disk Usage", value=f"{disk_use}%")
-    
-    await interaction.response.send_message(embed=embed) 
-    
 @bot.command()
-async def purge(ctx, amount):
-    await ctx.channel.purge(limit=amount)
-    
-@bot.command()    
-async def kick(ctx, member : discord.Member): 
-    await member.kick()
-    
-@bot.command()   
-async def ban(ctx, member : discord.Member):
-    await member.ban()
+async def fight(ctx):
+    response = requests.get(f'https://reddit.com/r/{subreddit}/random.json')
+    data = response.json()
+    permalink = data[0]['data']['children'][0]['data']['permalink']
+    link = f'https://reddit.com{permalink}'
+    await ctx.send(link)
     
 import os
 TOKEN = os.getenv("TOKEN")

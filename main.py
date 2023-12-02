@@ -38,7 +38,7 @@ async def rank(ctx):
     img = Image.new('RGB', (400, 40), color=(73, 109, 137)) 
     d = ImageDraw.Draw(img)
     d.rectangle((0, 0, percentage * 4, 40), fill=(255, 0, 0)) 
-    fnt = ImageFont.truetype('arial.ttf', 20)
+    fnt = ImageFont.load_default()  # This uses a default font, you can also try ImageFont.load_default()
     d.text((200, 10), str(percentage)+'%', font=fnt, fill=(255,255,0))
     
     img.save('progress.png')

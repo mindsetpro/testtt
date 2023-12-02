@@ -90,7 +90,10 @@ async def rank(ctx):
     d.rectangle((0, 0, bar_length, bar_height), fill=(52, 152, 219))
     
     fnt = ImageFont.load_default()
-    text_width, text_height = d.textsize(str(percentage) + '%', font=fnt)
+    
+    # Get the text size using the correct method (textbbox)
+    text_bbox = d.textbbox((0, 0), str(percentage) + '%', font=fnt)
+    text_width, text_height = text_bbox[2] - text_bbox[0], text_bbox[3] - text_bbox[1]
     
     # Position text in the center of the bar
     text_position = ((bar_width - text_width) // 2, (bar_height - text_height) // 2)

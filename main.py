@@ -80,12 +80,22 @@ async def rank(ctx):
     xp_for_nxt_lvl = 100 * lvl
     percentage = int(100 * xp / xp_for_nxt_lvl)
 
-    # Creates progress bar
-    img = Image.new('RGB', (400, 40), color=(73, 109, 137))
+    # Creates a modern and compact progress bar
+    bar_width = 300
+    bar_height = 15
+    img = Image.new('RGB', (bar_width, bar_height), color=(114, 137, 218))
     d = ImageDraw.Draw(img)
-    d.rectangle((0, 0, percentage * 4, 40), fill=(255, 0, 0))
+    
+    bar_length = int(bar_width * percentage / 100)
+    d.rectangle((0, 0, bar_length, bar_height), fill=(52, 152, 219))
+    
     fnt = ImageFont.load_default()
-    d.text((200, 10), str(percentage) + '%', font=fnt, fill=(255, 255, 0))
+    text_width, text_height = d.textsize(str(percentage) + '%', font=fnt)
+    
+    # Position text in the center of the bar
+    text_position = ((bar_width - text_width) // 2, (bar_height - text_height) // 2)
+    
+    d.text(text_position, str(percentage) + '%', font=fnt, fill=(255, 255, 255))
 
     img.save('progress.png')
 
